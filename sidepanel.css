@@ -1,0 +1,135 @@
+:root {
+  color-scheme: dark;
+  --background: #000;
+  --foreground: #e7e9ea;
+  --border: #2f3336;
+  --hover: #181818;
+  --muted: #71767b;
+  --error: #f4212e;
+  --feed-scale: 1;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #fff;
+  --foreground: #0f1419;
+  --border: #eff3f4;
+  --hover: #e7e7e8;
+  --muted: #536471;
+  --error: #c91429;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--background);
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+}
+
+.bar {
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+
+.grow {
+  flex: 1;
+}
+
+button {
+  appearance: none;
+  border: 0;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--foreground);
+  font: 12px/1 "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--hover);
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.zoom-controls button {
+  min-width: 24px;
+  padding: 0;
+}
+
+#zoom-reset {
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+button:focus-visible {
+  outline: 1px solid #1d9bf0;
+  outline-offset: 1px;
+}
+
+#stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background);
+}
+
+#status {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--background);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+#status[hidden] {
+  display: none;
+}
+
+#status.error {
+  color: var(--error);
+}
+
+iframe {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: calc(100% / var(--feed-scale));
+  height: calc(100% / var(--feed-scale));
+  transform: scale(var(--feed-scale));
+  transform-origin: top left;
+  border: 0;
+  background: var(--background);
+}

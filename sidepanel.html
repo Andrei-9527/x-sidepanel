@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@Andrei_9527</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <button id="home" type="button" title="回到首页">首页</button>
+      <button id="reload" type="button" title="重新加载">刷新</button>
+      <div class="zoom-controls" role="group" aria-label="布局缩放">
+        <button id="zoom-out" type="button" title="缩小布局" aria-label="缩小布局">−</button>
+        <button id="zoom-reset" type="button" title="恢复 100% 布局" aria-label="恢复 100% 布局">100%</button>
+        <button id="zoom-in" type="button" title="放大布局" aria-label="放大布局">+</button>
+      </div>
+      <span class="grow"></span>
+      <button id="theme-toggle" type="button" title="切换到日间模式">日间</button>
+    </header>
+    <div id="stage">
+      <div id="status" role="status">正在打开时间线…</div>
+      <iframe
+        id="feed"
+        title="X 时间线"
+        referrerpolicy="origin"
+        allow="autoplay; clipboard-read; clipboard-write; fullscreen; encrypted-media"
+      ></iframe>
+    </div>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>
