@@ -1,9 +1,12 @@
+importScripts("relationship-sync.js", "relationship-rate.js");
+
 const FRAME_DOMAINS = ["x.com", "twitter.com"];
 const FRAME_RULE_ID = 1;
 const NAV_RULE_ID = 2;
 const FETCH_SITE_RULE_ID = 3;
 const API_SITE_RULE_ID = 4;
 const CSRF_RULE_ID = 1000;
+const LANG_RULE_ID = 5;
 
 function frameRule() {
   return {
@@ -52,6 +55,7 @@ function navigationRule() {
 function panelFetchRule(id, requestDomains, site, excludedRequestDomains) {
   const condition = {
     topDomains: [chrome.runtime.id],
+    excludedInitiatorDomains: [chrome.runtime.id],
     requestDomains,
     resourceTypes: ["xmlhttprequest"],
   };
@@ -115,6 +119,7 @@ async function registerCsrfRule() {
         },
         condition: {
           topDomains: [chrome.runtime.id],
+          excludedInitiatorDomains: [chrome.runtime.id],
           requestDomains: ["x.com"],
           resourceTypes: ["xmlhttprequest"],
         },
@@ -145,20 +150,49 @@ async function applySiteTheme(theme) {
   }
 }
 
-function prepare(forPanel = false, theme = "dark") {
+function removeSiteWorkerRegistrations(origins) {
+  // Service Worker 缓存返回的响应不会经过 DNR。
+  return chrome.browsingData.remove(
+    { origins, originTypes: { unprotectedWeb: true, protectedWeb: true } },
+    { serviceWorkers: true }
+  );
+}
+
+function languageRule(locale) {
+  return {
+    id: LANG_RULE_ID,
+    priority: 2,
+    action: {
+      type: "modifyHeaders",
+      requestHeaders: [
+        { header: "accept-language", operation: "set", value: locale },
+        { header: "x-twitter-client-language", operation: "set", value: locale.toLowerCase() },
+      ],
+    },
+    condition: {
+      topDomains: [chrome.runtime.id],
+      requestDomains: ["x.com", "twitter.com", "api.x.com"],
+      resourceTypes: ["sub_frame", "xmlhttprequest"],
+    },
+  };
+}
+
+async function registerLanguageRule(locale) {
+  if (!locale) return;
+  await chrome.declarativeNetRequest.updateDynamicRules({
+    removeRuleIds: [LANG_RULE_ID],
+    addRules: [languageRule(locale)],
+  });
+}
+
+function prepare(forPanel = false, theme = "dark", locale = "") {
   return enqueue(async () => {
     await registerFrameRules();
     await registerCsrfRule();
+    await registerLanguageRule(locale);
     if (forPanel) {
       await applySiteTheme(theme);
-      // Service Worker 缓存返回的响应不会经过 DNR，必须先解除其注册。
-      await chrome.browsingData.remove(
-        {
-          origins: FRAME_DOMAINS.map((domain) => `https://${domain}`),
-          originTypes: { unprotectedWeb: true, protectedWeb: true },
-        },
-        { serviceWorkers: true }
-      );
+      await removeSiteWorkerRegistrations(FRAME_DOMAINS.map((domain) => `https://${domain}`));
     }
   });
 }
@@ -187,12 +221,44 @@ chrome.sidePanel
   .setPanelBehavior({ openPanelOnActionClick: true })
   .catch((error) => console.error(error));
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.url === chrome.runtime.getURL("sidepanel.html")) {
+    if (message?.type === "relationships-get") {
+      relationshipStatus()
+        .then((state) => sendResponse({ ok: true, state }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      return true;
+    }
+    if (message?.type === "relationships-begin") {
+      enqueue(() => beginRelationshipSync())
+        .then((result) => sendResponse({ ok: true, ...result }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      return true;
+    }
+    if (message?.type === "relationships-cancel") {
+      enqueue(() => cancelRelationshipSync())
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      return true;
+    }
+    if (message?.type === "relationships-save") {
+      enqueue(() => saveRelationships(message))
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      return true;
+    }
+    if (message?.type === "relationships-ignore") {
+      enqueue(() => setRelationshipIgnored(message))
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => sendResponse({ ok: false, error: error.message }));
+      return true;
+    }
+  }
   if (message?.type !== "prepare") {
     return undefined;
   }
 
-  prepare(true, message.theme)
+  prepare(true, message.theme, message.lang || "")
     .then(() => sendResponse({ ok: true }))
     .catch((error) => sendResponse({ ok: false, error: String(error) }));
   return true;

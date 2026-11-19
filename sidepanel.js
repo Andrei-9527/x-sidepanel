@@ -2,7 +2,6 @@ const HOME = "https://x.com/home";
 
 let feed = document.getElementById("feed");
 const status = document.getElementById("status");
-const reloadButton = document.getElementById("reload");
 const homeButton = document.getElementById("home");
 const themeButton = document.getElementById("theme-toggle");
 const zoomOutButton = document.getElementById("zoom-out");
@@ -26,10 +25,139 @@ function setZoom(value) {
 
 function applyTheme() {
   document.documentElement.dataset.theme = theme;
-  const nextMode = theme === "dark" ? "日间" : "夜间";
-  themeButton.textContent = nextMode;
-  themeButton.title = `切换到${nextMode}模式`;
+  const night = theme === "dark";
+  themeButton.setAttribute("aria-checked", night ? "true" : "false");
+  themeButton.title = t(night ? "themeToLightTitle" : "themeToDarkTitle");
   themeButton.setAttribute("aria-label", themeButton.title);
+}
+
+function ensureLanguageOptions() {
+  const select = document.getElementById("language");
+  if (!select || select.dataset.ready) return select;
+  for (const language of X_LANGUAGES) {
+    const option = document.createElement("option");
+    option.value = language.code;
+    option.textContent = language.label;
+    select.append(option);
+  }
+  select.dataset.ready = "1";
+  return select;
+}
+
+function applyChrome() {
+  const presentation = languagePresentation();
+  document.documentElement.lang = presentation.html;
+  document.documentElement.dir = presentation.dir;
+  document.getElementById("bar-nav")?.setAttribute("aria-label", t("nav"));
+  homeButton.textContent = t("home");
+  homeButton.title = t("homeTitle");
+  const following = document.getElementById("relationships-toggle");
+  if (following) {
+    following.textContent = t("relationshipsNav");
+    following.title = t("relationshipsTitle");
+  }
+  document.getElementById("zoom-controls")?.setAttribute("aria-label", t("zoom"));
+  zoomOutButton.title = t("zoomOut");
+  zoomOutButton.setAttribute("aria-label", t("zoomOut"));
+  zoomResetButton.title = t("zoomReset");
+  zoomResetButton.setAttribute("aria-label", t("zoomReset"));
+  zoomInButton.title = t("zoomIn");
+  zoomInButton.setAttribute("aria-label", t("zoomIn"));
+  feed.setAttribute("title", t("feedTitle"));
+  const select = ensureLanguageOptions();
+  if (select) {
+    select.setAttribute("aria-label", t("language"));
+    if (select.value !== xLanguage()) select.value = xLanguage();
+  }
+  applyTheme();
+}
+
+function publishLanguage() {
+  applyChrome();
+  globalThis.applyPanelLanguage?.();
+}
+
+async function readXLanguage() {
+  if (!chrome.cookies?.getAll) return "";
+  const cookies = await chrome.cookies.getAll({ url: "https://x.com/", name: "lang" });
+  const cookie = cookies.find((item) => !item.partitionKey) || cookies[0];
+  return canonicalXLanguage(cookie?.value);
+}
+
+async function writeXLanguage(code) {
+  if (!chrome.cookies?.set) return;
+  const expirationDate = Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60;
+  for (const domain of ["x.com", "twitter.com"]) {
+    const cookie = {
+      url: `https://${domain}/`,
+      name: "lang",
+      value: code,
+      domain: `.${domain}`,
+      path: "/",
+      secure: true,
+      sameSite: "no_restriction",
+      expirationDate,
+    };
+    try {
+      await chrome.cookies.set(cookie);
+    } catch {
+      delete cookie.sameSite;
+      await chrome.cookies.set(cookie);
+    }
+  }
+  try {
+    await applyXAccountLanguage(code);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function applyXAccountLanguage(code) {
+  if (typeof fetch !== "function" || !chrome.cookies?.getAll) return;
+  const cookies = await chrome.cookies.getAll({ url: "https://x.com/", name: "ct0" });
+  const ct0 = (cookies.find((cookie) => !cookie.partitionKey) || cookies[0])?.value;
+  if (!ct0) return;
+  const response = await fetch("https://api.x.com/1.1/account/settings.json", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      authorization: "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
+      "content-type": "application/x-www-form-urlencoded",
+      "x-csrf-token": ct0,
+      "x-twitter-auth-type": "OAuth2Session",
+      "x-twitter-active-user": "yes",
+    },
+    body: new URLSearchParams({ lang: code }),
+  });
+  if (!response.ok) throw new Error(t("languageFailed"));
+}
+
+function watchXLanguage() {
+  if (watchXLanguage.done || !chrome.cookies?.onChanged) return;
+  watchXLanguage.done = true;
+  chrome.cookies.onChanged.addListener((change) => {
+    const cookie = change.cookie;
+    if (change.removed || cookie?.name !== "lang" || cookie.partitionKey) return;
+    if (cookie.domain?.replace(/^\./, "") !== "x.com") return;
+    const code = canonicalXLanguage(cookie.value);
+    if (!code || code === xLanguage()) return;
+    setXLanguage(code);
+    localStorage.setItem("panel-lang-choice", xLanguage());
+    publishLanguage();
+  });
+}
+
+async function boot() {
+  watchXLanguage();
+  const cookie = await readXLanguage();
+  if (cookie !== xLanguage()) {
+    try {
+      await writeXLanguage(xLanguage());
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  openFeed(HOME);
 }
 
 function setStatus(message, isError) {
@@ -44,9 +172,13 @@ function clearStatus() {
 }
 
 async function prepare() {
-  const response = await chrome.runtime.sendMessage({ type: "prepare", theme });
+  const response = await chrome.runtime.sendMessage({
+    type: "prepare",
+    theme,
+    lang: languagePresentation().locale,
+  });
   if (!response?.ok) {
-    throw new Error(response?.error || "侧栏还没准备好");
+    throw new Error(response?.error || t("panelNotReady"));
   }
 }
 
@@ -59,13 +191,13 @@ async function openFeed(url) {
   feed.replaceWith(nextFeed);
   feed = nextFeed;
   currentUrl = url;
-  setStatus("正在打开时间线…", false);
+  setStatus(t("opening"), false);
 
   try {
     await prepare();
   } catch (error) {
     if (id === navigationId) {
-      setStatus(error.message || "打不开侧栏", true);
+      setStatus(error.message || t("openFailed"), true);
     }
     return;
   }
@@ -75,7 +207,7 @@ async function openFeed(url) {
   }
   feed.src = url;
   loadTimer = window.setTimeout(() => {
-    setStatus("未能加载 X。请在浏览器打开 x.com 检查网络或完成登录，再回来刷新。", true);
+    setStatus(t("loadFailed"), true);
   }, 12000);
 }
 
@@ -100,10 +232,6 @@ window.addEventListener("message", (event) => {
   clearStatus();
 });
 
-reloadButton.addEventListener("click", () => {
-  openFeed(currentUrl);
-});
-
 homeButton.addEventListener("click", () => {
   openFeed(HOME);
 });
@@ -115,10 +243,25 @@ themeButton.addEventListener("click", () => {
   openFeed(currentUrl);
 });
 
+document.getElementById("language")?.addEventListener("change", async () => {
+  const select = document.getElementById("language");
+  const code = canonicalXLanguage(select.value);
+  if (!code || code === xLanguage()) return;
+  setXLanguage(code);
+  localStorage.setItem("panel-lang-choice", xLanguage());
+  publishLanguage();
+  try {
+    await writeXLanguage(code);
+  } catch (error) {
+    setStatus(error?.message || t("languageFailed"), true);
+  }
+  openFeed(currentUrl);
+});
+
 zoomOutButton.addEventListener("click", () => setZoom(zoom - 10));
 zoomResetButton.addEventListener("click", () => setZoom(100));
 zoomInButton.addEventListener("click", () => setZoom(zoom + 10));
 
 setZoom(zoom);
-applyTheme();
-openFeed(HOME);
+publishLanguage();
+boot();

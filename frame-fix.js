@@ -29,7 +29,7 @@
   const notifyPanel = () => {
     if (document.getElementById("react-root")) {
       window.parent.postMessage(
-        { type: "x-panel-ready", url: window.location.href },
+        { type: "x-panel-ready", url: window.location.href, lang: document.documentElement.lang },
         panelOrigin
       );
     }

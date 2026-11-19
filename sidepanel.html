@@ -8,15 +8,30 @@
   </head>
   <body>
     <header class="bar">
-      <button id="home" type="button" title="回到首页">首页</button>
-      <button id="reload" type="button" title="重新加载">刷新</button>
-      <div class="zoom-controls" role="group" aria-label="布局缩放">
-        <button id="zoom-out" type="button" title="缩小布局" aria-label="缩小布局">−</button>
-        <button id="zoom-reset" type="button" title="恢复 100% 布局" aria-label="恢复 100% 布局">100%</button>
-        <button id="zoom-in" type="button" title="放大布局" aria-label="放大布局">+</button>
+      <nav id="bar-nav" class="bar-nav" aria-label="侧栏导航">
+        <button id="home" type="button" title="回到首页" aria-current="page">首页</button>
+        <button id="relationships-toggle" type="button" title="关注与粉丝" aria-controls="relationships" aria-pressed="false">粉丝管理</button>
+      </nav>
+      <div class="bar-tools">
+        <div id="zoom-controls" class="zoom-controls" role="group" aria-label="布局缩放">
+          <button id="zoom-out" type="button" title="缩小布局" aria-label="缩小布局">−</button>
+          <button id="zoom-reset" type="button" title="恢复 100% 布局" aria-label="恢复 100% 布局">100%</button>
+          <button id="zoom-in" type="button" title="放大布局" aria-label="放大布局">+</button>
+        </div>
+        <select id="language" aria-label="语言"></select>
+        <button id="theme-toggle" type="button" role="switch" aria-checked="true" title="切换到日间模式">
+          <span class="theme-knob" aria-hidden="true"></span>
+          <svg class="theme-icon theme-sun" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" fill="currentColor"></circle>
+            <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"></path>
+            </g>
+          </svg>
+          <svg class="theme-icon theme-moon" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="currentColor" d="M15.2 3.1a8.2 8.2 0 1 0 5.7 13.6A7 7 0 0 1 15.2 3.1z"></path>
+          </svg>
+        </button>
       </div>
-      <span class="grow"></span>
-      <button id="theme-toggle" type="button" title="切换到日间模式">日间</button>
     </header>
     <div id="stage">
       <div id="status" role="status">正在打开时间线…</div>
@@ -27,6 +42,45 @@
         allow="autoplay; clipboard-read; clipboard-write; fullscreen; encrypted-media"
       ></iframe>
     </div>
+    <section id="relationships" aria-labelledby="relationships-title" hidden>
+      <header class="relationships-overview">
+        <div class="relationships-heading">
+          <h1 id="relationships-title">关注与粉丝</h1>
+          <button id="relationships-sync" type="button" disabled>立即同步</button>
+        </div>
+        <p id="relationships-status" role="status">正在读取同步记录…</p>
+        <p id="relationships-error" role="status" hidden></p>
+      </header>
+      <div id="relationships-results" hidden>
+        <div id="relationships-counts" class="relationships-counts" role="group" aria-label="用户列表">
+          <button type="button" data-list="unreturned" aria-pressed="true"><span class="list-label">未回关</span> <b></b></button>
+          <button type="button" data-list="unfollowed" aria-pressed="false"><span class="list-label">取关</span> <b></b></button>
+          <button type="button" data-list="ignored" aria-pressed="false"><span class="list-label">已忽略</span> <b></b></button>
+        </div>
+        <details class="relationships-history">
+          <summary id="relationships-history-summary">每日记录（北京时间）</summary>
+          <table id="relationships-history-table" aria-label="每日同步记录">
+            <thead>
+              <tr>
+                <th id="relationships-col-date" scope="col">日期</th>
+                <th id="relationships-col-following" scope="col">关注</th>
+                <th id="relationships-col-followers" scope="col">粉丝</th>
+                <th id="relationships-col-unreturned" scope="col">未回关</th>
+              </tr>
+            </thead>
+            <tbody id="relationships-history"></tbody>
+          </table>
+        </details>
+        <div id="relationships-filter">
+          <label><span id="relationships-days-prefix">未回关至少</span> <input id="relationships-days" type="number" min="0" step="1" value="0" /> <span id="relationships-days-suffix">天</span></label>
+          <p id="relationships-days-hint">从首次同步发现未回关当天起算，以最近一次同步为准。</p>
+        </div>
+        <p id="relationships-empty" role="status" hidden></p>
+        <ul id="relationships-users" aria-label="用户"></ul>
+      </div>
+    </section>
+    <script src="i18n.js"></script>
     <script src="sidepanel.js"></script>
+    <script src="relationships-panel.js"></script>
   </body>
 </html>
